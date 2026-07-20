@@ -88,15 +88,29 @@ def format_for_facebook(text: str) -> str:
     return text.replace("*", "").replace("_", "").replace("`", "")
 
 
+def get_page_token() -> tuple:
+    user_token = os.getenv("USER_TOKEN")
+    if not user_token:
+        logger.error("Falta USER_TOKEN en .env")
+        return None, None
+    try:
+        import requests as req
+        r = req.get(f"https://graph.facebook.com/v25.0/me/accounts?access_token={user_token}")
+        data = r.json()
+        page = data["data"][0]
+        return page["id"], page["access_token"]
+    except Exception as e:
+        logger.error(f"Error obteniendo page token: {e}")
+        return None, None
+
+
 def publish_ranking():
     logger.info("=== Iniciando publicación de ranking ===")
     results = load_results()
     leaderboard = build_leaderboard(results)
 
-    page_token = os.getenv("PAGE_ACCESS_TOKEN")
-    page_id = os.getenv("PAGE_ID")
-    if not page_token or not page_id:
-        logger.error("Faltan PAGE_ACCESS_TOKEN o PAGE_ID en .env")
+    page_id, page_token = get_page_token()
+    if not page_id or not page_token:
         return
 
     fb = FacebookClient(page_id, page_token)
@@ -107,9 +121,11 @@ def publish_ranking():
     img_gen.generate_ranking(leaderboard, str(img_path))
 
     text_fb = format_for_facebook(build_ranking_text(leaderboard))
-    text_fb += "\n\n🔗 Ingresa al Oráculo: https://t.me/PITONISO_BOT"
+    text_fb += "\n\nIngresa al Oráculo: https://t.me/PITONISO_BOT"
 
-    fb.post_photo(str(img_path), text_fb)
+    result = fb.post_photo(str(img_path), text_fb)
+    if not result:
+        fb.post_text(text_fb)
     logger.info("=== Publicación de ranking completada ===")
 
 
@@ -118,10 +134,8 @@ def publish_daily_summary():
     results = load_results()
     leaderboard = build_leaderboard(results)
 
-    page_token = os.getenv("PAGE_ACCESS_TOKEN")
-    page_id = os.getenv("PAGE_ID")
-    if not page_token or not page_id:
-        logger.error("Faltan credenciales en .env")
+    page_id, page_token = get_page_token()
+    if not page_id or not page_token:
         return
 
     fb = FacebookClient(page_id, page_token)
@@ -131,18 +145,20 @@ def publish_daily_summary():
     top = leaderboard[0] if leaderboard else {}
 
     msg = (
-        f"📊 RESUMEN DIARIO - ORÁCULO PITONISO\n"
+        f"RESUMEN DIARIO - ORACULO PITONISO\n"
         f"Fecha: {datetime.now().strftime('%d/%m/%Y')}\n\n"
-        f"📡 Señales totales: {total_trades}\n"
-        f"✅ Aciertos: {total_wins}\n"
-        f"📈 Win Rate Global: {overall_wr:.1f}%\n"
+        f"Señales totales: {total_trades}\n"
+        f"Aciertos: {total_wins}\n"
+        f"Win Rate Global: {overall_wr:.1f}%\n"
     )
     if top:
-        msg += f"\n🏆 Líder: {top['strategy']} (PnL: {top['total_pnl_pct']:+.1f}%)"
+        msg += f"\nLider: {top['strategy']} (PnL: {top['total_pnl_pct']:+.1f}%)"
 
-    msg += "\n\n🔗 t.me/PITONISO_BOT"
+    msg += "\n\nt.me/PITONISO_BOT"
 
-    fb.post_text(msg)
+    result = fb.post_text(msg)
+    if not result:
+        fb.post_photo(str(OUTPUT_DIR / "ranking_latest.png"), msg)
     logger.info("=== Resumen diario publicado ===")
 
 

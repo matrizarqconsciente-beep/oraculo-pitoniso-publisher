@@ -28,11 +28,12 @@ class FacebookClient:
             return False
 
     def post_photo(self, image_path: str, message: str = "") -> bool:
+        import urllib.parse
         url = f"{self.base_url}/photos"
         try:
             with open(image_path, "rb") as img:
                 files = {"source": img}
-                data = {"message": message, "access_token": self.access_token}
+                data = {"message": message, "no_story": "false", "access_token": self.access_token}
                 resp = requests.post(url, files=files, data=data)
                 if resp.status_code == 200:
                     post_id = resp.json().get("id", "?")
