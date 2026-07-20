@@ -2,24 +2,34 @@ import os
 import json
 import logging
 import sys
+import random
 from datetime import datetime
 from pathlib import Path
 
 from publishers.facebook_client import FacebookClient
 from utils.image_generator import ImageGenerator
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s"
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 logger = logging.getLogger("SocialPublisher")
 
 BASE_DIR = Path(__file__).parent
 DATA_DIR = BASE_DIR / "data"
 OUTPUT_DIR = BASE_DIR / "output"
 
+env_path = BASE_DIR / ".env"
+if env_path.exists():
+    with open(env_path) as f:
+        for line in f:
+            line = line.strip()
+            if line and not line.startswith("#") and "=" in line:
+                k, v = line.split("=", 1)
+                os.environ.setdefault(k.strip(), v.strip())
 
-def load_results() -> dict:
+TG_LINK = os.getenv("TELEGRAM_GROUP_LINK", "t.me/+90UWmX0Iiks0MWUx")
+TG_BOT = os.getenv("BOT_REFERRAL_LINK", "t.me/PITONISO_BOT")
+
+
+def load_results():
     path = DATA_DIR / "competition_results.json"
     if not path.exists():
         logger.warning(f"No se encuentra {path}. Usando datos de ejemplo.")
@@ -28,23 +38,40 @@ def load_results() -> dict:
         return json.load(f)
 
 
-def get_sample_data() -> dict:
+def load_golden_trades():
+    path = DATA_DIR / "golden_trades_pending.json"
+    if not path.exists():
+        return []
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        return data if isinstance(data, list) else []
+    except (json.JSONDecodeError, Exception):
+        return []
+
+
+def save_golden_trades(trades):
+    path = DATA_DIR / "golden_trades_pending.json"
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(trades, f, indent=2)
+
+
+def get_sample_data():
     return {
         "start_time": datetime.now().isoformat(),
         "strategies": {
             "Meme Hunter": {"author": "Antigravity", "trades": 165, "wins": 100, "losses": 65, "total_pnl_pct": 3.158, "win_rate": 60.6, "profit_factor": 2.14, "avg_rr": 2.53, "signals_generated": 30251},
             "Trance Trading": {"author": "Trance", "trades": 139, "wins": 118, "losses": 21, "total_pnl_pct": 0.31, "win_rate": 84.9, "profit_factor": 2.1, "avg_rr": 1.5, "signals_generated": 25000},
             "Wyckoff Scout": {"author": "Kimi AI", "trades": 75, "wins": 35, "losses": 40, "total_pnl_pct": 1.992, "win_rate": 46.7, "profit_factor": 1.8, "avg_rr": 2.8, "signals_generated": 18000},
-            "SMC Táctico": {"author": "Gemini", "trades": 50, "wins": 30, "losses": 20, "total_pnl_pct": 0.48, "win_rate": 60.0, "profit_factor": 1.5, "avg_rr": 2.0, "signals_generated": 12000},
+            "SMC Tactico": {"author": "Gemini", "trades": 50, "wins": 30, "losses": 20, "total_pnl_pct": 0.48, "win_rate": 60.0, "profit_factor": 1.5, "avg_rr": 2.0, "signals_generated": 12000},
             "Markov SMC Elite": {"author": "opencode", "trades": 40, "wins": 28, "losses": 12, "total_pnl_pct": 0.8, "win_rate": 70.0, "profit_factor": 2.5, "avg_rr": 2.2, "signals_generated": 10000},
             "Antigravity Swing": {"author": "Antigravity", "trades": 30, "wins": 18, "losses": 12, "total_pnl_pct": 0.6, "win_rate": 60.0, "profit_factor": 1.9, "avg_rr": 2.4, "signals_generated": 8000},
             "ML Sniper": {"author": "Pitoniso AI", "trades": 90, "wins": 40, "losses": 50, "total_pnl_pct": -0.2, "win_rate": 44.4, "profit_factor": 0.9, "avg_rr": 1.8, "signals_generated": 20000},
-            "SMC Legacy v99": {"author": "Pitoniso AI", "trades": 25, "wins": 10, "losses": 15, "total_pnl_pct": -0.5, "win_rate": 40.0, "profit_factor": 0.7, "avg_rr": 1.5, "signals_generated": 6000},
         }
     }
 
 
-def build_leaderboard(results: dict) -> list:
+def build_leaderboard(results):
     strategies = results.get("strategies", {})
     ranked = []
     for name, data in strategies.items():
@@ -63,32 +90,7 @@ def build_leaderboard(results: dict) -> list:
     return ranked
 
 
-def build_ranking_text(leaderboard: list) -> str:
-    lines = ["🏆 *RANKING DEL ORÁCULO PITONISO*", "Competencia de IAs - Trance Trading", ""]
-    for i, s in enumerate(leaderboard[:10]):
-        medal = {0: "🥇", 1: "🥈", 2: "🥉"}.get(i, f"{i+1}.")
-        name = s["strategy"]
-        pnl = s["total_pnl_pct"]
-        wr = s["win_rate"]
-        pf = s["profit_factor"]
-        shadow = " [SOMBRA]" if s["is_shadow"] else ""
-        lines.append(f"{medal} {name}{shadow}")
-        lines.append(f"   PnL: {pnl:+.1f}% | WR: {wr:.0f}% | PF: {pf:.2f}")
-        lines.append("")
-    lines.append("")
-    lines.append("📊 Datos en tiempo real desde la blockchain de Binance.")
-    lines.append("🤖 10 IAs compitiendo. Resultados verificables.")
-    lines.append("")
-    lines.append("👇 Ingresa al Oráculo:")
-    lines.append("t.me/PITONISO_BOT")
-    return "\n".join(lines)
-
-
-def format_for_facebook(text: str) -> str:
-    return text.replace("*", "").replace("_", "").replace("`", "")
-
-
-def get_page_token() -> tuple:
+def get_page_token():
     user_token = os.getenv("USER_TOKEN")
     if not user_token:
         logger.error("Falta USER_TOKEN en .env")
@@ -105,7 +107,7 @@ def get_page_token() -> tuple:
 
 
 def publish_ranking():
-    logger.info("=== Iniciando publicación de ranking ===")
+    logger.info("=== RANKING ===")
     results = load_results()
     leaderboard = build_leaderboard(results)
 
@@ -115,22 +117,183 @@ def publish_ranking():
 
     fb = FacebookClient(page_id, page_token)
     img_gen = ImageGenerator()
-
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     img_path = OUTPUT_DIR / "ranking_latest.png"
     img_gen.generate_ranking(leaderboard, str(img_path))
 
-    text_fb = format_for_facebook(build_ranking_text(leaderboard))
-    text_fb += "\n\nIngresa al Oráculo: https://t.me/PITONISO_BOT"
+    top = leaderboard[0] if leaderboard else {}
+    top_name = top.get("strategy", "")
+    top_pnl = top.get("total_pnl_pct", 0)
+    top_wr = top.get("win_rate", 0)
 
-    result = fb.post_photo(str(img_path), text_fb)
+    n_ais = len(leaderboard)
+    total_trades = sum(s.get("trades", 0) for s in results.get("strategies", {}).values())
+    total_wins = sum(s.get("wins", 0) for s in results.get("strategies", {}).values())
+    overall_wr = (total_wins / total_trades * 100) if total_trades > 0 else 0
+
+    msg = (
+        f"COMPETENCIA DE IAS EN VIVO\n"
+        f"========================\n\n"
+        f"{n_ais} inteligencias artificiales compiten en tiempo real "
+        f"analizando las 150 criptomonedas mas liquidas de Binance Futures.\n\n"
+        f"Cada IA tiene su propia estrategia:\n"
+        f"  - Meme Hunter (sentimiento social)\n"
+        f"  - Wyckoff Scout (acumulacion institucional)\n"
+        f"  - SMC Tactico (order blocks)\n"
+        f"  - Liquidation Hunter (liquidez)\n"
+        f"  - Y 6 mas...\n\n"
+        f"LIDER ACTUAL: {top_name}\n"
+        f"  PnL: {top_pnl:+.1f}%  |  WR: {top_wr:.0f}%  |  Trades: {top.get('trades', 0)}\n\n"
+        f"GLOBAL DEL ECOSISTEMA:\n"
+        f"  Senales totales: {total_trades}\n"
+        f"  Aciertos: {total_wins}\n"
+        f"  Win Rate: {overall_wr:.1f}%\n\n"
+        f"COMO FUNCIONA:\n"
+        f"  1. Las IAs analizan el mercado 24/7\n"
+        f"  2. Generan senales con entry, SL y TP\n"
+        f"  3. Puedes elegir que IAs copiar\n"
+        f"  4. Todo es transparente y verificable\n\n"
+        f"Todo esto ocurre en vivo en nuestro grupo de Telegram.\n"
+        f"Entra, mira los resultados y decide por ti mismo:\n"
+        f"{TG_LINK}\n\n"
+        f"Actualizado: {datetime.now().strftime('%d/%m/%Y %H:%M')}"
+    )
+
+    result = fb.post_photo(str(img_path), msg)
     if not result:
-        fb.post_text(text_fb)
-    logger.info("=== Publicación de ranking completada ===")
+        fb.post_text(msg)
+    logger.info("RANKING OK")
+
+
+def publish_golden_trade():
+    logger.info("=== GOLDEN TRADE ===")
+    trades = load_golden_trades()
+    if not trades:
+        logger.info("No hay golden trades")
+        return
+
+    trade = trades[0]
+    strategy = trade.get("strategy", "IA")
+    symbol = trade.get("symbol", "???")
+    pnl = trade.get("pnl_pct", 0)
+    ratio = trade.get("ratio", 0)
+
+    pnl_str = f"+{pnl*100:.2f}%" if pnl < 1 else f"{pnl:+.2f}%"
+    ratio_str = f"Ratio {ratio:.1f}:1" if ratio > 0 else "Precision algoritmica"
+
+    page_id, page_token = get_page_token()
+    if not page_id or not page_token:
+        return
+
+    fb = FacebookClient(page_id, page_token)
+    img_gen = ImageGenerator()
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
+    img_path = OUTPUT_DIR / "golden_trade_latest.png"
+    img_gen.generate_golden_trade(trade, str(img_path))
+
+    msg = (
+        f"OPERACION DESTACADA DEL ORACULO\n"
+        f"============================\n\n"
+        f"La IA {strategy} acaba de cerrar una operacion en {symbol}USDT.\n\n"
+        f"Resultado: {pnl_str}\n"
+        f"Ratio riesgo/beneficio: {ratio_str}\n\n"
+        f"Esta es UNA de las 10 IAs que operan en nuestro ecosistema.\n"
+        f"Cada una con su propia estrategia, compitiendo para ver cual "
+        f"genera mejores resultados.\n\n"
+        f"Tu decides a cual copiar:\n"
+        f"  - Quieres precision? -> Trance Trading (85% WR)\n"
+        f"  - Quieres rentabilidad? -> Meme Hunter (+3.1%)\n"
+        f"  - Quieres consistencia? -> Todas a la vez\n\n"
+        f"En nuestro grupo de Telegram recibes las senales en el momento "
+        f"exacto en que se generan, con entry, stop loss y take profit.\n\n"
+        f"Resultados reales, sin filtros, verificables:\n"
+        f"{TG_LINK}"
+    )
+
+    result = fb.post_photo(str(img_path), msg)
+    if not result:
+        fb.post_text(msg)
+
+    trades.pop(0)
+    save_golden_trades(trades)
+    logger.info(f"Golden trade {strategy} {symbol} publicado")
+
+
+def publish_explainer():
+    logger.info("=== EXPLAINER ===")
+    results = load_results()
+    leaderboard = build_leaderboard(results)
+
+    page_id, page_token = get_page_token()
+    if not page_id or not page_token:
+        return
+
+    fb = FacebookClient(page_id, page_token)
+    img_gen = ImageGenerator()
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
+    img_path = OUTPUT_DIR / "ranking_latest.png"
+    img_gen.generate_ranking(leaderboard, str(img_path))
+
+    total_trades = sum(s.get("trades", 0) for s in results.get("strategies", {}).values())
+    total_wins = sum(s.get("wins", 0) for s in results.get("strategies", {}).values())
+    overall_wr = (total_wins / total_trades * 100) if total_trades > 0 else 0
+    top = leaderboard[0] if leaderboard else {}
+
+    hooks = [
+        f"Imagina tener 10 traders elite trabajando para ti 24/7, "
+        f"cada uno especializado en una estrategia diferente, "
+        f"compitiendo para ver quien gana mas dinero.",
+        f"La mayoria de los grupos de senales tienen UNA persona "
+        f"detras. Nosotros tenemos 10 IAs compitiendo. La mejor "
+        f"gana, tu copias a todas.",
+        f"No vendemos cursos. No tenemos gurus. Solo 10 IAs "
+        f"compitiendo con dinero real en Binance. Resultados "
+        f"publicos y verificables.",
+    ]
+    hook = random.choice(hooks)
+
+    msg = (
+        f"COMO FUNCIONA EL ORACULO PITONISO\n"
+        f"==============================\n\n"
+        f"{hook}\n\n"
+        f"EL SISTEMA:\n"
+        f"  10 IAs analizan las 150 criptos mas liquidas\n"
+        f"  Cada 5 minutos evaluan senales de compra/venta\n"
+        f"  Cuando una IA detecta una oportunidad, envia la senal\n"
+        f"  Tu eliges cuales IAs seguir y cuales ignorar\n\n"
+        f"TRANSPARENCIA TOTAL:\n"
+        f"  - Ranking publico actualizado en tiempo real\n"
+        f"  - Cada trade registrado con su resultado\n"
+        f"  - IAs con mal rendimiento entran en modo sombra\n"
+        f"  - Nunca ocultamos una perdida\n\n"
+        f"RESULTADOS ACTUALES:\n"
+        f"  Senales totales: {total_trades}\n"
+        f"  Aciertos: {total_wins}\n"
+        f"  Win Rate Global: {overall_wr:.1f}%\n"
+    )
+    if top:
+        msg += f"  IA lider: {top['strategy']} ({top['total_pnl_pct']:+.1f}%)\n\n"
+
+    msg += (
+        f"COMO EMPEZAR:\n"
+        f"  1. Entra al grupo de Telegram\n"
+        f"  2. Habla con el bot @PITONISO_BOT\n"
+        f"  3. Usa /preferencias para elegir tus IAs\n"
+        f"  4. Recibe senales en tiempo real\n\n"
+        f"Gratuito. Sin compromiso. Resultados reales.\n"
+        f"{TG_LINK}"
+    )
+
+    img_path2 = OUTPUT_DIR / "explainer_latest.png"
+    img_gen.generate_ranking(leaderboard, str(img_path2))
+    result = fb.post_photo(str(img_path2), msg)
+    if not result:
+        fb.post_text(msg)
+    logger.info("EXPLAINER OK")
 
 
 def publish_daily_summary():
-    logger.info("=== Iniciando resumen diario ===")
+    logger.info("=== RESUMEN DIARIO ===")
     results = load_results()
     leaderboard = build_leaderboard(results)
 
@@ -144,33 +307,59 @@ def publish_daily_summary():
     overall_wr = (total_wins / total_trades * 100) if total_trades > 0 else 0
     top = leaderboard[0] if leaderboard else {}
 
+    active_ais = len([s for s in results.get("strategies", {}).values() if not s.get("is_shadow")])
+    shadow_ais = len([s for s in results.get("strategies", {}).values() if s.get("is_shadow")])
+
     msg = (
-        f"RESUMEN DIARIO - ORACULO PITONISO\n"
-        f"Fecha: {datetime.now().strftime('%d/%m/%Y')}\n\n"
-        f"Señales totales: {total_trades}\n"
-        f"Aciertos: {total_wins}\n"
-        f"Win Rate Global: {overall_wr:.1f}%\n"
+        f"ORACULO PITONISO - CIERRE DEL DIA\n"
+        f"{datetime.now().strftime('%d/%m/%Y')}\n"
+        f"==============================\n\n"
+        f"ACTIVIDAD:\n"
+        f"  Senales generadas: {total_trades}\n"
+        f"  Aciertos: {total_wins}\n"
+        f"  Win Rate Global: {overall_wr:.1f}%\n"
+        f"  IAs activas: {active_ais}\n"
+        f"  IAs en sombra: {shadow_ais}\n"
     )
     if top:
-        msg += f"\nLider: {top['strategy']} (PnL: {top['total_pnl_pct']:+.1f}%)"
+        msg += (
+            f"\nIA DEL DIA:\n"
+            f"  {top['strategy']}\n"
+            f"  PnL: {top['total_pnl_pct']:+.1f}%  |  WR: {top['win_rate']:.0f}%\n"
+        )
 
-    msg += "\n\nt.me/PITONISO_BOT"
+    msg += (
+        f"\nRECORDATORIO:\n"
+        f"  - Puedes elegir que IAs copiar con /preferencias\n"
+        f"  - Las senales incluyen entry, SL y TP\n"
+        f"  - Todo es transparente y verificable\n\n"
+        f"Manana seguimos. Las IAs no descansan.\n"
+        f"{TG_LINK}"
+    )
 
     result = fb.post_text(msg)
     if not result:
-        fb.post_photo(str(OUTPUT_DIR / "ranking_latest.png"), msg)
-    logger.info("=== Resumen diario publicado ===")
+        img_gen = ImageGenerator()
+        img_path = OUTPUT_DIR / "ranking_latest.png"
+        img_gen.generate_ranking(leaderboard, str(img_path))
+        fb.post_photo(str(img_path), msg)
+    logger.info("RESUMEN DIARIO OK")
 
 
 if __name__ == "__main__":
-    if len(sys.argv) > 1:
-        command = sys.argv[1]
-        if command == "ranking":
-            publish_ranking()
-        elif command == "daily":
-            publish_daily_summary()
-        else:
-            print(f"Comando desconocido: {command}")
-            print("Usa: python social_publisher.py [ranking|daily]")
-    else:
+    command = sys.argv[1] if len(sys.argv) > 1 else "ranking"
+    if command == "ranking":
         publish_ranking()
+    elif command == "golden":
+        publish_golden_trade()
+    elif command == "explainer":
+        publish_explainer()
+    elif command == "daily":
+        publish_daily_summary()
+    elif command == "all":
+        publish_explainer()
+        publish_ranking()
+        publish_golden_trade()
+        publish_daily_summary()
+    else:
+        print("Comandos: ranking, golden, explainer, daily, all")
