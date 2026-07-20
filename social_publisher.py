@@ -7,6 +7,7 @@ from datetime import datetime
 from pathlib import Path
 
 from publishers.facebook_client import FacebookClient
+from publishers.twitter_client import TwitterClient
 from utils.image_generator import ImageGenerator
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
@@ -106,6 +107,10 @@ def get_page_token():
         return None, None
 
 
+def _tw():
+    return TwitterClient()
+
+
 def publish_ranking():
     logger.info("=== RANKING ===")
     results = load_results()
@@ -116,6 +121,7 @@ def publish_ranking():
         return
 
     fb = FacebookClient(page_id, page_token)
+    tw = _tw()
     img_gen = ImageGenerator()
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     img_path = OUTPUT_DIR / "ranking_latest.png"
@@ -162,6 +168,9 @@ def publish_ranking():
     result = fb.post_photo(str(img_path), msg)
     if not result:
         fb.post_text(msg)
+
+    tw_short = f"Ranking Oraculo Pitoniso:\nLider: {top_name} ({top_pnl:+.1f}%)\nWR: {top_wr:.0f}% | {n_ais} IAs compitiendo\n{TG_LINK}"
+    tw.post_photo(str(img_path), tw_short)
     logger.info("RANKING OK")
 
 
@@ -186,6 +195,7 @@ def publish_golden_trade():
         return
 
     fb = FacebookClient(page_id, page_token)
+    tw = _tw()
     img_gen = ImageGenerator()
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     img_path = OUTPUT_DIR / "golden_trade_latest.png"
@@ -214,6 +224,9 @@ def publish_golden_trade():
     if not result:
         fb.post_text(msg)
 
+    tw_short = f"{strategy} cerro {symbol}USDT: {pnl_str} (ratio {ratio_str})\n10 IAs compitiendo en vivo\n{TG_LINK}"
+    tw.post_photo(str(img_path), tw_short)
+
     trades.pop(0)
     save_golden_trades(trades)
     logger.info(f"Golden trade {strategy} {symbol} publicado")
@@ -229,6 +242,7 @@ def publish_explainer():
         return
 
     fb = FacebookClient(page_id, page_token)
+    tw = _tw()
     img_gen = ImageGenerator()
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     img_path = OUTPUT_DIR / "ranking_latest.png"
@@ -289,6 +303,9 @@ def publish_explainer():
     result = fb.post_photo(str(img_path2), msg)
     if not result:
         fb.post_text(msg)
+
+    tw_short = f"{hook[:100]}...\nResultados: {total_trades} senales, WR {overall_wr:.0f}%\n{TG_LINK}"
+    tw.post_photo(str(img_path2), tw_short)
     logger.info("EXPLAINER OK")
 
 
@@ -302,6 +319,7 @@ def publish_daily_summary():
         return
 
     fb = FacebookClient(page_id, page_token)
+    tw = _tw()
     total_trades = sum(s.get("trades", 0) for s in results.get("strategies", {}).values())
     total_wins = sum(s.get("wins", 0) for s in results.get("strategies", {}).values())
     overall_wr = (total_wins / total_trades * 100) if total_trades > 0 else 0
@@ -343,10 +361,13 @@ def publish_daily_summary():
         img_path = OUTPUT_DIR / "ranking_latest.png"
         img_gen.generate_ranking(leaderboard, str(img_path))
         fb.post_photo(str(img_path), msg)
+
+    tw_short = f"Oraculo Pitoniso - Cierre del dia:\n{total_trades} senales | WR {overall_wr:.0f}%\nIAs activas: {active_ais}"
+    if top:
+        tw_short += f"\nLider: {top['strategy']} ({top['total_pnl_pct']:+.1f}%)"
+    tw_short += f"\n{TG_LINK}"
+    tw.post_text(tw_short)
     logger.info("RESUMEN DIARIO OK")
-
-
-def publish_beginner():
     logger.info("=== BEGINNER ===")
     results = load_results()
     leaderboard = build_leaderboard(results)
@@ -356,6 +377,7 @@ def publish_beginner():
         return
 
     fb = FacebookClient(page_id, page_token)
+    tw = _tw()
     img_gen = ImageGenerator()
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     img_path = OUTPUT_DIR / "ranking_latest.png"
@@ -419,10 +441,10 @@ def publish_beginner():
     result = fb.post_photo(str(img_path2), msg)
     if not result:
         fb.post_text(msg)
+
+    tw_short = f"{hook[:120]}...\n{TG_LINK}"
+    tw.post_photo(str(img_path2), tw_short)
     logger.info("BEGINNER OK")
-
-
-if __name__ == "__main__":
     command = sys.argv[1] if len(sys.argv) > 1 else "ranking"
     if command == "ranking":
         publish_ranking()
