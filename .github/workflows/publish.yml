@@ -5,8 +5,8 @@ on:
     - cron: '0 */6 * * *'
   workflow_dispatch:
     inputs:
-      type:
-        description: 'Tipo de publicación'
+      publish_type:
+        description: 'Tipo de publicacion'
         required: true
         default: 'ranking'
         type: choice
@@ -33,14 +33,14 @@ jobs:
           pip install pillow requests
 
       - name: Publicar ranking
-        if: ${{ github.event.inputs.type == 'ranking' || github.event_name == 'schedule' }}
+        if: ${{ github.event_name == 'schedule' || github.event.inputs.publish_type == 'ranking' }}
         env:
           PAGE_ACCESS_TOKEN: ${{ secrets.PAGE_ACCESS_TOKEN }}
           PAGE_ID: ${{ secrets.PAGE_ID }}
         run: python social_publisher.py ranking
 
       - name: Publicar resumen diario
-        if: ${{ github.event.inputs.type == 'daily' }}
+        if: ${{ github.event.inputs.publish_type == 'daily' }}
         env:
           PAGE_ACCESS_TOKEN: ${{ secrets.PAGE_ACCESS_TOKEN }}
           PAGE_ID: ${{ secrets.PAGE_ID }}
