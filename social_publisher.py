@@ -346,6 +346,82 @@ def publish_daily_summary():
     logger.info("RESUMEN DIARIO OK")
 
 
+def publish_beginner():
+    logger.info("=== BEGINNER ===")
+    results = load_results()
+    leaderboard = build_leaderboard(results)
+
+    page_id, page_token = get_page_token()
+    if not page_id or not page_token:
+        return
+
+    fb = FacebookClient(page_id, page_token)
+    img_gen = ImageGenerator()
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
+    img_path = OUTPUT_DIR / "ranking_latest.png"
+    img_gen.generate_ranking(leaderboard, str(img_path))
+
+    total_trades = sum(s.get("trades", 0) for s in results.get("strategies", {}).values())
+    top = leaderboard[0] if leaderboard else {}
+
+    hooks = [
+        f"Quieres aprender a operar y generar ingresos?\n"
+        f"No necesitas experiencia previa.\n"
+        f"Te ensenamos con 10 IAs compitiendo en vivo.",
+        f"De cero a trader: nuestras IAs te muestran cada operacion\n"
+        f"en tiempo real. Aprendes viendo, practicas copiando.",
+        f"El mejor curso de trading es ver a 10 expertos\n"
+        f"compitiendo con dinero real. Eso es el Oraculo.",
+        f"La mayoria pierde dinero porque opera sin estrategia.\n"
+        f"Nosotros te mostramos 10 estrategias diferentes en accion.\n"
+        f"Elige la que mas te guste y copiala.",
+    ]
+    hook = random.choice(hooks)
+
+    msg = (
+        f"APRENDE A OPERAR CON INTELIGENCIA ARTIFICIAL\n"
+        f"==========================================\n\n"
+        f"{hook}\n\n"
+        f"COMO FUNCIONA:\n"
+        f"  1. Entras a nuestro grupo de Telegram\n"
+        f"  2. Ves en vivo como 10 IAs analizan el mercado\n"
+        f"  3. Cada IA te ensena una estrategia diferente:\n"
+        f"     - Meme Hunter -> trading con sentimiento social\n"
+        f"     - Wyckoff Scout -> acumulacion institucional\n"
+        f"     - SMC Tactico -> order blocks profesionales\n"
+        f"     - Liquidation Hunter -> caza de liquidaciones\n"
+        f"     - Y 6 estrategias mas...\n"
+        f"  4. Copias las senales o aprendes la estrategia\n\n"
+        f"PARA QUIEN ES:\n"
+        f"  - Principiantes que quieren aprender desde cero\n"
+        f"  - Traders que quieren mejorar su estrategia\n"
+        f"  - Cualquiera que quiera generar ingresos extra\n\n"
+        f"NO VENDEMOS CURSOS:\n"
+        f"  No tenemos guru, no vendemos humo.\n"
+        f"  Son 10 IAs compitiendo. Resultados reales.\n"
+        f"  Tu decides si copias, si aprendes, o ambas.\n\n"
+        f"RESULTADOS DEL ECOSISTEMA:\n"
+        f"  Senales totales: {total_trades}\n"
+    )
+    if top:
+        msg += (
+            f"  IA lider: {top['strategy']} ({top['total_pnl_pct']:+.1f}%)\n"
+            f"  Win Rate: {top['win_rate']:.0f}%\n"
+        )
+
+    msg += (
+        f"\nEntra gratis, aprende, y empieza a operar:\n"
+        f"{TG_LINK}"
+    )
+
+    img_path2 = OUTPUT_DIR / "beginner_latest.png"
+    img_gen.generate_ranking(leaderboard, str(img_path2))
+    result = fb.post_photo(str(img_path2), msg)
+    if not result:
+        fb.post_text(msg)
+    logger.info("BEGINNER OK")
+
+
 if __name__ == "__main__":
     command = sys.argv[1] if len(sys.argv) > 1 else "ranking"
     if command == "ranking":
@@ -354,12 +430,15 @@ if __name__ == "__main__":
         publish_golden_trade()
     elif command == "explainer":
         publish_explainer()
+    elif command == "beginner":
+        publish_beginner()
     elif command == "daily":
         publish_daily_summary()
     elif command == "all":
+        publish_beginner()
         publish_explainer()
         publish_ranking()
         publish_golden_trade()
         publish_daily_summary()
     else:
-        print("Comandos: ranking, golden, explainer, daily, all")
+        print("Comandos: ranking, golden, explainer, beginner, daily, all")

@@ -25,21 +25,29 @@ set HOUR=%time:~0,2%
 if %HOUR% LSS 10 set HOUR=0%time:~1,1%
 
 if %HOUR%==08 (
+    REM Arranque: todos los formatos
     %PYTHON% social_publisher.py all >> "%LOG%" 2>&1
 ) else if %HOUR%==10 (
-    %PYTHON% social_publisher.py golden >> "%LOG%" 2>&1
+    REM Para los que arrancan el dia: aprender a operar
+    %PYTHON% social_publisher.py beginner >> "%LOG%" 2>&1
 ) else if %HOUR%==12 (
+    REM Educativo: como funciona el ecosistema
     %PYTHON% social_publisher.py explainer >> "%LOG%" 2>&1
 ) else if %HOUR%==14 (
+    REM Actualizacion ranking + trade
     %PYTHON% social_publisher.py ranking >> "%LOG%" 2>&1
     %PYTHON% social_publisher.py golden >> "%LOG%" 2>&1
 ) else if %HOUR%==16 (
-    %PYTHON% social_publisher.py golden >> "%LOG%" 2>&1
+    REM Tarde: atraer nuevos con aprender a operar
+    %PYTHON% social_publisher.py beginner >> "%LOG%" 2>&1
 ) else if %HOUR%==18 (
-    %PYTHON% social_publisher.py explainer >> "%LOG%" 2>&1
+    REM Trade destacado
+    %PYTHON% social_publisher.py golden >> "%LOG%" 2>&1
 ) else if %HOUR%==20 (
+    REM Cierre: trade + resumen
     %PYTHON% social_publisher.py golden >> "%LOG%" 2>&1
     %PYTHON% social_publisher.py daily >> "%LOG%" 2>&1
 ) else (
+    REM Ultimo post del dia
     %PYTHON% social_publisher.py golden >> "%LOG%" 2>&1
 )
