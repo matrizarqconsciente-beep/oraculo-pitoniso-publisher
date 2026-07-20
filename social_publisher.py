@@ -8,6 +8,8 @@ from pathlib import Path
 
 from publishers.facebook_client import FacebookClient
 from publishers.twitter_client import TwitterClient
+from publishers.instagram_client import InstagramClient
+from publishers.telegram_client import TelegramClient
 from utils.image_generator import ImageGenerator
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
@@ -107,8 +109,11 @@ def get_page_token():
         return None, None
 
 
-def _tw():
-    return TwitterClient()
+def _get_clients(page_id=None, page_token=None):
+    tw = TwitterClient()
+    tg = TelegramClient()
+    ig = InstagramClient(page_id, page_token) if page_id else None
+    return tw, tg, ig
 
 
 def publish_ranking():
@@ -121,7 +126,7 @@ def publish_ranking():
         return
 
     fb = FacebookClient(page_id, page_token)
-    tw = _tw()
+    tw, tg, ig = _get_clients(page_id, page_token)
     img_gen = ImageGenerator()
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     img_path = OUTPUT_DIR / "ranking_latest.png"
@@ -171,6 +176,9 @@ def publish_ranking():
 
     tw_short = f"Ranking Oraculo Pitoniso:\nLider: {top_name} ({top_pnl:+.1f}%)\nWR: {top_wr:.0f}% | {n_ais} IAs compitiendo\n{TG_LINK}"
     tw.post_photo(str(img_path), tw_short)
+    tg.post_photo(str(img_path), msg[:1024])
+    if ig:
+        ig.post_photo(str(img_path), f"Ranking Oraculo Pitoniso - Lider: {top_name} ({top_pnl:+.1f}%)")
     logger.info("RANKING OK")
 
 
@@ -195,7 +203,7 @@ def publish_golden_trade():
         return
 
     fb = FacebookClient(page_id, page_token)
-    tw = _tw()
+    tw, tg, ig = _get_clients(page_id, page_token)
     img_gen = ImageGenerator()
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     img_path = OUTPUT_DIR / "golden_trade_latest.png"
@@ -226,6 +234,9 @@ def publish_golden_trade():
 
     tw_short = f"{strategy} cerro {symbol}USDT: {pnl_str} (ratio {ratio_str})\n10 IAs compitiendo en vivo\n{TG_LINK}"
     tw.post_photo(str(img_path), tw_short)
+    tg.post_photo(str(img_path), f"Operacion destacada: {strategy} en {symbol}USDT - {pnl_str}")
+    if ig:
+        ig.post_photo(str(img_path), f"{strategy} cerro {symbol}USDT: {pnl_str}")
 
     trades.pop(0)
     save_golden_trades(trades)
@@ -242,7 +253,7 @@ def publish_explainer():
         return
 
     fb = FacebookClient(page_id, page_token)
-    tw = _tw()
+    tw, tg, ig = _get_clients(page_id, page_token)
     img_gen = ImageGenerator()
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     img_path = OUTPUT_DIR / "ranking_latest.png"
@@ -306,6 +317,9 @@ def publish_explainer():
 
     tw_short = f"{hook[:100]}...\nResultados: {total_trades} senales, WR {overall_wr:.0f}%\n{TG_LINK}"
     tw.post_photo(str(img_path2), tw_short)
+    tg.post_photo(str(img_path2), f"{hook[:200]}...\n\n{TG_LINK}")
+    if ig:
+        ig.post_photo(str(img_path2), f"Oraculo Pitoniso - {total_trades} senales, {overall_wr:.0f}% WR")
     logger.info("EXPLAINER OK")
 
 
@@ -319,7 +333,7 @@ def publish_daily_summary():
         return
 
     fb = FacebookClient(page_id, page_token)
-    tw = _tw()
+    tw, tg, ig = _get_clients(page_id, page_token)
     total_trades = sum(s.get("trades", 0) for s in results.get("strategies", {}).values())
     total_wins = sum(s.get("wins", 0) for s in results.get("strategies", {}).values())
     overall_wr = (total_wins / total_trades * 100) if total_trades > 0 else 0
@@ -367,6 +381,9 @@ def publish_daily_summary():
         tw_short += f"\nLider: {top['strategy']} ({top['total_pnl_pct']:+.1f}%)"
     tw_short += f"\n{TG_LINK}"
     tw.post_text(tw_short)
+    tg.post_text(msg[:4096])
+    if ig:
+        ig.post_text(f"Oraculo Pitoniso - Cierre del dia\n{total_trades} senales, {overall_wr:.0f}% WR, {active_ais} IAs activas")
     logger.info("RESUMEN DIARIO OK")
     logger.info("=== BEGINNER ===")
     results = load_results()
@@ -377,7 +394,7 @@ def publish_daily_summary():
         return
 
     fb = FacebookClient(page_id, page_token)
-    tw = _tw()
+    tw, tg, ig = _get_clients(page_id, page_token)
     img_gen = ImageGenerator()
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     img_path = OUTPUT_DIR / "ranking_latest.png"
@@ -444,6 +461,9 @@ def publish_daily_summary():
 
     tw_short = f"{hook[:120]}...\n{TG_LINK}"
     tw.post_photo(str(img_path2), tw_short)
+    tg.post_photo(str(img_path2), f"{hook[:200]}...\n\n{TG_LINK}")
+    if ig:
+        ig.post_photo(str(img_path2), f"Aprende a operar con 10 IAs - {total_trades} senales en vivo")
     logger.info("BEGINNER OK")
     command = sys.argv[1] if len(sys.argv) > 1 else "ranking"
     if command == "ranking":
